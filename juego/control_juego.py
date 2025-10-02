@@ -1,6 +1,6 @@
 import random
 import pygame
-from typing import Optional
+from typing import Optional, List
 
 from .figura import Figura
 from .jugador import Jugador
@@ -63,10 +63,13 @@ class ControlJuego:
         self.pantalla = pantalla
         self.puntos = 10
         self.jugador: Optional[Jugador] = None
-        self.enemigos: list[Enemigo] = []
+        self.enemigos: List[Enemigo] = []
+        self.enemigo: Optional[Enemigo] = None
         self.tiempo_enemigo = 0.0     # Acumulador de tiempo para nuevos enemigos
         self.intervalo_enemigo = 5.0  # Cada 5 segundos
-        
+        self.MAX_ENEMIGOS = 10  # 👈 Límite máximo
+        self.tiempo_ultimo_enemigo = pygame.time.get_ticks()
+        self.intervalo_creacion = 2000 # Intervalo de 2 segundos (en milisegundos)
         # Sistema de fuentes para la interfaz de usuario
         self.fuente = pygame.font.Font(None, 36)  # Fuente por defecto, tamaño 36
         self.fuente_pequena = pygame.font.Font(None, 24)  # Fuente para instrucciones
@@ -119,7 +122,7 @@ class ControlJuego:
             if event.type == pygame.QUIT:
                 self.jugando = False
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1:  # Clic izquierdo
+                if event.button == 1 and self.jugador: # Clic izquierdo
                     self.jugador.disparar(event.pos)
 
     def actualizar(self, dt: float) -> None:
@@ -160,24 +163,14 @@ class ControlJuego:
 
         # 3. Verificar colisiones entre proyectiles y enemigo
         self._verificar_colisiones_proyectiles()
-        for proyectil in self.jugador.proyectiles[:]:
-            for enemigo in self.enemigos:
-                if proyectil.colision(enemigo):
-                   if enemigo.recibir_dano():
-                      self.puntos += 2
-                proyectil.activo = False
+        
 
         # 4. Verificar colisión entre jugador y enemigo
         self._verificar_colision_jugador_enemigo()
-        for enemigo in self.enemigos:
-            if (self.jugador.colision(enemigo) and
-                self.tiempo_desde_ultimo_dano >= self.cooldown_dano):
-
-                self.puntos -= 2
-                self.tiempo_desde_ultimo_dano = 0.0
+        
 
         # 5. Respawnear enemigo si fue destruido
-        if not self.enemigo.activo:
+        if self.enemigo and not self.enemigo.activo:
             self.respawnear_enemigo()
 
         # 6. Verificar fin del juego (puntos agotados)
@@ -187,11 +180,41 @@ class ControlJuego:
             
         # Eliminar enemigos inactivos (opcional)
         self.enemigos = [e for e in self.enemigos if e.activo]
-            
+        if self.enemigos:
+            self.enemigo = self.enemigos[-1]
+        else:
+            self.enemigo = None
+
         self.tiempo_enemigo += dt
         if self.tiempo_enemigo >= self.intervalo_enemigo:
             self.respawnear_enemigo()
             self.tiempo_enemigo = 0.0
+            
+    def dibujar_texto(self, superficie, texto, tamano, x, y):
+        # Configuración básica de la fuente
+        try:
+            # Intentar cargar una fuente del sistema (ejemplo)
+            fuente = pygame.font.SysFont('Arial', tamano, bold=True)
+        except:
+            # Usar la fuente por defecto si la del sistema falla
+            fuente = pygame.font.Font(None, tamano) 
+            
+        text_surface = fuente.render(texto, True, (255, 255, 255)) # Color blanco
+        text_rect = text_surface.get_rect()
+        text_rect.topleft = (x, y)
+        superficie.blit(text_surface, text_rect)
+
+    def dibujar_interfaz(self, pantalla):
+        # 1. Obtener el número actual de enemigos (POO: Usando el tamaño del grupo)
+        num_enemigos = len(self.enemigos)
+        
+        # 2. Formatear el texto
+        mensaje = f"Enemigos: {num_enemigos} / {self.MAX_ENEMIGOS}"
+        
+        # 3. Dibujar en la esquina superior
+        self.dibujar_texto(pantalla, mensaje, 24, 10, 10)
+        
+
             
 
     def _verificar_colisiones_proyectiles(self) -> None:
@@ -316,6 +339,32 @@ class ControlJuego:
         puntos_rect = texto_puntos_final.get_rect(
             center=(self.pantalla.get_width() // 2, self.pantalla.get_height() // 2 + 40))
         self.pantalla.blit(texto_puntos_final, puntos_rect)
+        
+    def intentar_crear_enemigo(self):
+        # 1. Verificar el límite
+        if len(self.enemigos) < self.MAX_ENEMIGOS:
+            
+            tiempo_actual = pygame.time.get_ticks()
+            # 2. Verificar el intervalo de tiempo para no crearlos instantáneamente
+            if tiempo_actual - self.tiempo_ultimo_enemigo >= self.intervalo_creacion:
+                
+                # 3. Variación de comportamiento (Velocidad)
+                # POO: La lógica de la velocidad se delega al constructor del Enemigo
+                velocidad_aleatoria = random.randint(2, 6) # Velocidad entre 2 y 6
+                
+                # Ejemplo de coordenadas aleatorias
+                x = random.randint(50, self.ancho - 50)
+                y = 0 # Empieza arriba de la pantalla
+
+                nuevo_enemigo = Enemigo(x, y, velocidad_aleatoria)
+                
+                # 4. Añadir al grupo
+                self.enemigos.add(nuevo_enemigo)
+                
+                # Actualizar el tiempo
+                self.tiempo_ultimo_enemigo = tiempo_actual
+
+    
 
     def ejecutar(self) -> None:
         """

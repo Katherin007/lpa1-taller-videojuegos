@@ -92,8 +92,11 @@ class Enemigo(Figura):
         self.vida = 3  # Vida actual del enemigo
         self.vida_maxima = 3  # Vida máxima del enemigo
         self.tiempo_invulnerable = 0.0  # Tiempo de invulnerabilidad en segundos
-        self.color_original = color  # Color base para restaurar después de efectos
-
+        self.color_original = color # Color base para restaurar después de efectos
+        if not hasattr(self, 'rect'):
+            self.rect = pygame.Rect(x-radio, y-radio, radio*2, radio*2)
+        self.rect.x = x
+        self.rect.y = y
     def establecer_objetivo(self, objetivo: 'Jugador') -> None:
         """
         Establece el objetivo que el enemigo debe perseguir.
@@ -117,6 +120,12 @@ class Enemigo(Figura):
             raise TypeError("El objetivo debe tener atributos 'posicion' y 'activo'")
         
         self.objetivo = objetivo
+
+    def update(self):
+        # Mueve el enemigo hacia abajo usando su velocidad asignada
+        self.rect.y += int(self.velocidad / 60)  # Aproximación para 60 FPS
+        if self.rect.top > 600:
+            self.activo = False 
 
     def actualizar(self, dt: float) -> None:
         """
@@ -283,7 +292,8 @@ class Enemigo(Figura):
         estado = "activo" if self.activo else "inactivo"
         objetivo = "con objetivo" if self.objetivo else "sin objetivo"
         invulnerable = f", invulnerable {self.tiempo_invulnerable:.1f}s" if self.tiempo_invulnerable > 0 else ""
-        
+        x = getattr(self, 'x', getattr(self, 'posicion', Vector2D(0,0)).x)
+        y = getattr(self, 'y', getattr(self, 'posicion', Vector2D(0,0)).y)
         return (f"Enemigo(pos=({self.x:.1f}, {self.y:.1f}), "
                 f"vida={self.vida}/{self.vida_maxima}, "
                 f"radio={self.radio}, {objetivo}{invulnerable}, {estado})")
@@ -297,4 +307,6 @@ class Enemigo(Figura):
         str
             Descripción simplificada del enemigo
         """
+        x = getattr(self, 'x', getattr(self, 'posicion', Vector2D(0,0)).x)
+        y = getattr(self, 'y', getattr(self, 'posicion', Vector2D(0,0)).y)
         return f"Enemigo en ({int(self.x)}, {int(self.y)}) - Vida: {self.vida}/{self.vida_maxima}"
